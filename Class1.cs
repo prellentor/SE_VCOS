@@ -15,6 +15,7 @@ using SpaceEngineers.Game.ModAPI.Ingame;
 
 public sealed class Program : MyGridProgram
 {
+
     enum State { Idle, Running, Stop };
 
     class Vehicle
@@ -58,13 +59,13 @@ public sealed class Program : MyGridProgram
             pressedKeyC = false;
 
             if (program.Me.CustomData == "")
-                throw new Exception("\nWrite Vehicle remote control name in this PB custom data:\n");
+                throw new Exception("\nWrite Vehicle controller name in this PB custom data:\n");
 
             string data = program.Me.CustomData;
             string[] words;
             words = data.Split('\n');
             if (words.Length < 1)
-                throw new Exception("\nWrite Vehicle remote control name in this PB custom data:\n");
+                throw new Exception("\nWrite Vehicle controller name in this PB custom data:\n");
 
             controllerName = words[0].Trim(' ');
             acceleration = float.Parse(words[1].Trim(' '));
@@ -119,7 +120,7 @@ public sealed class Program : MyGridProgram
         public Vehicle(Program newProgram)
         {
             program = newProgram;
-            program.Me.CustomName = "PB Speed Control";
+            program.Me.CustomName = "PB VCOS";
 
             InitializeProperies();
             InitializeSystems();
@@ -140,14 +141,25 @@ public sealed class Program : MyGridProgram
 
         private void LightController()
         {
-            if (controller.HandBrake == true || controller.MoveIndicator.Y > 0.0f)
+            int inputDirection = Math.Sign(-controller.MoveIndicator.Z);
+            int movementDirection = Math.Sign(_currentSpeed);
+            bool brake = false;
+
+            if (inputDirection == 0)
+                brake = false;
+            else if (inputDirection > movementDirection)
+                brake = true;
+            else if (inputDirection < movementDirection)
+                brake = true;
+
+            if (controller.HandBrake || controller.MoveIndicator.Y > 0.0f || brake)
                 foreach (IMyLightingBlock light in brakeLights)
                     light.SetValueFloat("Intensity", 10.0f);
             else
                 foreach (IMyLightingBlock light in brakeLights)
                     light.SetValueFloat("Intensity", 1.0f);
 
-            bool reverse = _currentSpeed < -0.1f ? true : false;
+            bool reverse = _currentSpeed < -1.0f ? true : false;
             foreach (IMyLightingBlock light in reverseLights)
                 light.Enabled = reverse;
         }
@@ -163,10 +175,11 @@ public sealed class Program : MyGridProgram
             SetSpeed(_currentSpeed + acceleration * (-controller.MoveIndicator.Z));
 
             float currentSpeed = Math.Abs(_currentSpeed);
-            float currentRightOverride = -Math.Sign(_currentSpeed);
-            float currentLeftOverride = -currentRightOverride;
+            float movementDirection = Math.Sign(_currentSpeed);
+            float currentRightOverride = -movementDirection;
+            float currentLeftOverride = movementDirection;
 
-            if (controller.GetShipSpeed() * 3.7f > currentSpeed + 0.5f)
+            if (controller.GetShipSpeed() * 3.7f > currentSpeed + 5.0f)
                 controller.HandBrake = true;
             else
                 controller.HandBrake = handBrake;
@@ -232,15 +245,6 @@ public sealed class Program : MyGridProgram
                 }
             }
             catch (Exception e) { return 1; }
-            try
-            {
-                ControlHandbrake();
-                SpeedControl();
-            }
-            catch (Exception e)
-            {
-                return 1;
-            }
             return 0;
         }
     }
@@ -261,9 +265,10 @@ public sealed class Program : MyGridProgram
         }
         else if (1 == unit.Proceed())
             initialize = false;
-        //Me.CustomName = "PB Instruction Count : " + Runtime.CurrentInstructionCount;
+        //Echo("PB Instruction Count : " + Runtime.CurrentInstructionCount);
     }
 
     public void Save()
     { }
+
 }
